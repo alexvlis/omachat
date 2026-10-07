@@ -44,7 +44,7 @@ Column {
     objectName: "notificationPreviewsToggle"
     width: parent.width
     label: "Show sender and message previews"
-    description: "Off by default. Enabling this displays conversation names and message text in desktop alerts and notification history."
+    description: "Off by default. Enabling this displays conversation names and message text in desktop alerts and notification history. Cached profile photos can appear even when text previews are off."
     checked: !!root.notifications && root.notifications.previews
     enabled: !!root.notifications && root.notifications.loaded && root.notifications.enabled && !root.notifications.saving && root.notifications.connected
     foreground: root.foreground

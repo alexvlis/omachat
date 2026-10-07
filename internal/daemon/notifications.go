@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"html"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -19,7 +22,7 @@ var errNotificationsUnavailable = errors.New("Desktop notifications are unavaila
 
 type notificationTransport interface {
 	owner(context.Context) (string, error)
-	notify(context.Context, uint32, string, string) (uint32, error)
+	notify(context.Context, uint32, string, string, string) (uint32, error)
 	close(context.Context, uint32) error
 	stop()
 }
@@ -84,7 +87,7 @@ func truncateNotification(text string, limit int) string {
 	return text
 }
 
-func (n *desktopNotifications) send(ctx context.Context, target wire.NotificationTarget, title, body string) error {
+func (n *desktopNotifications) send(ctx context.Context, target wire.NotificationTarget, icon, title, body string) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	n.mu.Lock()
@@ -110,7 +113,7 @@ func (n *desktopNotifications) send(ctx context.Context, target wire.Notificatio
 		n.order = nil
 	}
 	key := notificationKey(target)
-	id, err := n.transport.notify(ctx, n.replaces[key], title, body)
+	id, err := n.transport.notify(ctx, n.replaces[key], icon, title, body)
 	if err != nil || id == 0 {
 		return errNotificationsUnavailable
 	}
@@ -218,7 +221,7 @@ func (d *Daemon) handleNotificationRequest(ctx context.Context, req wire.Request
 		return wire.Response{ID: req.ID, OK: true, Result: false}
 	}
 	if req.Method == wire.MethodTestNotification {
-		if err := d.notifications.send(ctx, wire.NotificationTarget{}, "OmaChat", "Desktop notifications are working. Click to open notification settings."); err != nil {
+		if err := d.notifications.send(ctx, wire.NotificationTarget{}, "mail-unread", "OmaChat", "Desktop notifications are working. Click to open notification settings."); err != nil {
 			return fail(err)
 		}
 		return wire.Response{ID: req.ID, OK: true, Result: true}
@@ -256,10 +259,55 @@ func (d *Daemon) handleNotificationRequest(ctx context.Context, req wire.Request
 		return wire.Response{ID: req.ID, OK: true, Result: false}
 	}
 	title, body := notificationText(network, p, cfg.NotificationPreviews)
-	if err := d.notifications.send(ctx, wire.NotificationTarget{Network: network, ConversationID: msg.ConversationID}, title, body); err != nil {
+	icon := d.notificationIcon(network, msg.ConversationID)
+	if err := d.notifications.send(ctx, wire.NotificationTarget{Network: network, ConversationID: msg.ConversationID}, icon, title, body); err != nil {
 		return fail(err)
 	}
 	return wire.Response{ID: req.ID, OK: true, Result: true}
+}
+
+func (d *Daemon) notificationIcon(network, conversationID string) string {
+	var conversations []wire.Conversation
+	var directory string
+	switch network {
+	case wire.NetworkGMessages:
+		d.mu.RLock()
+		conversation := d.convs[conversationID]
+		d.mu.RUnlock()
+		conversations = []wire.Conversation{conversation}
+		directory = d.paths.MediaDir()
+	case wire.NetworkWhatsApp:
+		if d.wa != nil {
+			conversations = d.wa.Conversations(0)
+		}
+		directory = d.paths.WhatsAppMediaDir()
+	case wire.NetworkTelegram:
+		if d.tg != nil {
+			conversations = d.tg.Conversations(0)
+		}
+		directory = d.paths.TelegramMediaDir()
+	case wire.NetworkMessenger:
+		if d.fb != nil {
+			conversations = d.fb.Conversations(0)
+		}
+		directory = d.paths.MessengerMediaDir()
+	}
+	for _, conversation := range conversations {
+		if conversation.ID != conversationID || conversation.AvatarPath == "" {
+			continue
+		}
+		path := filepath.Clean(conversation.AvatarPath)
+		relative, err := filepath.Rel(directory, path)
+		if err != nil || !filepath.IsAbs(path) || relative == "." || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			break
+		}
+		info, err := os.Lstat(path)
+		if err != nil || !info.Mode().IsRegular() || info.Size() == 0 {
+			break
+		}
+		return (&url.URL{Scheme: "file", Path: path}).String()
+	}
+	return "mail-unread"
 }
 
 type dbusNotifications struct {
@@ -295,11 +343,11 @@ func (n *dbusNotifications) owner(ctx context.Context) (string, error) {
 	return owner, err
 }
 
-func (n *dbusNotifications) notify(ctx context.Context, replaces uint32, title, body string) (uint32, error) {
+func (n *dbusNotifications) notify(ctx context.Context, replaces uint32, icon, title, body string) (uint32, error) {
 	var id uint32
 	hints := map[string]dbus.Variant{"urgency": dbus.MakeVariant(byte(1)), "category": dbus.MakeVariant("im.received")}
 	err := n.conn.Object(notificationInterface, "/org/freedesktop/Notifications").CallWithContext(ctx, notificationInterface+".Notify", 0,
-		"OmaChat", replaces, "mail-unread", title, body, []string{"default", "Open"}, hints, int32(8000)).Store(&id)
+		"OmaChat", replaces, icon, title, body, []string{"default", "Open"}, hints, int32(8000)).Store(&id)
 	return id, err
 }
 

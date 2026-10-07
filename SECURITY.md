@@ -36,6 +36,9 @@ separate from messaging credentials. Daily checks are off by default.
 
 Desktop alerts use the local `org.freedesktop.Notifications` D-Bus service.
 Notifications are enabled by default, but sender/message previews are off.
+Alerts can show the conversation's cached profile photo even with text previews
+off. Icons use local image files from that service's media cache; unavailable
+photos fall back to a generic icon.
 Enabling previews sends conversation names and a bounded text preview to the
 desktop notification service, which may retain them in its notification history.
 OmaChat does not put message content in notification command-line arguments or

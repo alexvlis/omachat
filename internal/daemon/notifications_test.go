@@ -3,6 +3,9 @@ package daemon
 import (
 	"context"
 	"errors"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -14,17 +17,17 @@ import (
 )
 
 type fakeNotifications struct {
-	server      string
-	id          uint32
-	replace     uint32
-	title, body string
-	closed      []uint32
-	err         error
+	server            string
+	id                uint32
+	replace           uint32
+	icon, title, body string
+	closed            []uint32
+	err               error
 }
 
 func (f *fakeNotifications) owner(context.Context) (string, error) { return f.server, f.err }
-func (f *fakeNotifications) notify(_ context.Context, replace uint32, title, body string) (uint32, error) {
-	f.replace, f.title, f.body = replace, title, body
+func (f *fakeNotifications) notify(_ context.Context, replace uint32, icon, title, body string) (uint32, error) {
+	f.replace, f.icon, f.title, f.body = replace, icon, title, body
 	if replace != 0 {
 		return replace, f.err
 	}
@@ -93,7 +96,7 @@ func TestNotificationsReplaceByServiceAndRouteTrustedActions(t *testing.T) {
 	first := wire.NotificationTarget{Network: "telegram", ConversationID: "demo"}
 	second := wire.NotificationTarget{Network: "whatsapp", ConversationID: "demo"}
 	for _, target := range []wire.NotificationTarget{first, first, second} {
-		if err := n.send(context.Background(), target, "OmaChat", "New message"); err != nil {
+		if err := n.send(context.Background(), target, "mail-unread", "OmaChat", "New message"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -124,11 +127,11 @@ func TestNotificationServerRestartRetiresOldIDs(t *testing.T) {
 	n.transport = transport
 	first := wire.NotificationTarget{Network: "telegram", ConversationID: "demo-a"}
 	second := wire.NotificationTarget{Network: "telegram", ConversationID: "demo-b"}
-	if err := n.send(context.Background(), first, "OmaChat", "New message"); err != nil {
+	if err := n.send(context.Background(), first, "mail-unread", "OmaChat", "New message"); err != nil {
 		t.Fatal(err)
 	}
 	transport.server, transport.id = ":1.100", 0
-	if err := n.send(context.Background(), second, "OmaChat", "New message"); err != nil {
+	if err := n.send(context.Background(), second, "mail-unread", "OmaChat", "New message"); err != nil {
 		t.Fatal(err)
 	}
 	if transport.replace != 0 || len(n.targets) != 1 || n.targets[1] != second {
@@ -139,8 +142,74 @@ func TestNotificationServerRestartRetiresOldIDs(t *testing.T) {
 		t.Fatal("old server signal removed a new notification")
 	}
 	transport.err = errors.New("unavailable")
-	if err := n.send(context.Background(), second, "OmaChat", "New message"); err != errNotificationsUnavailable {
+	if err := n.send(context.Background(), second, "mail-unread", "OmaChat", "New message"); err != errNotificationsUnavailable {
 		t.Fatal("notification error was not surfaced safely")
+	}
+}
+
+func TestNotificationIconUsesMatchingServiceAvatar(t *testing.T) {
+	d := freshSelectionDaemon(t)
+	if err := os.MkdirAll(d.paths.MediaDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(d.paths.TelegramMediaDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	google := filepath.Join(d.paths.MediaDir(), "google.png")
+	telegram := filepath.Join(d.paths.TelegramMediaDir(), "contact #1 photo.jpg")
+	for _, path := range []string{google, telegram} {
+		if err := os.WriteFile(path, []byte("synthetic avatar"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	d.convs["same-id"] = wire.Conversation{ID: "same-id", AvatarPath: google}
+	d.tg.AddTestConversation(wire.Conversation{ID: "same-id", AvatarPath: telegram})
+	for network, path := range map[string]string{"gmessages": google, "telegram": telegram} {
+		if icon := d.notificationIcon(network, "same-id"); icon != (&url.URL{Scheme: "file", Path: path}).String() {
+			t.Fatalf("wrong avatar for %s: %s", network, icon)
+		}
+	}
+	if err := os.Remove(telegram); err != nil {
+		t.Fatal(err)
+	}
+	if d.notificationIcon("telegram", "same-id") != "mail-unread" || d.notificationIcon("telegram", "missing") != "mail-unread" {
+		t.Fatal("missing avatar did not use the generic fallback")
+	}
+	d.tg.AddTestConversation(wire.Conversation{ID: "wrong-service", AvatarPath: google})
+	if d.notificationIcon("telegram", "wrong-service") != "mail-unread" {
+		t.Fatal("another service's image was accepted")
+	}
+	link := filepath.Join(d.paths.TelegramMediaDir(), "linked.jpg")
+	if err := os.Symlink(google, link); err != nil {
+		t.Fatal(err)
+	}
+	d.tg.AddTestConversation(wire.Conversation{ID: "linked", AvatarPath: link})
+	if d.notificationIcon("telegram", "linked") != "mail-unread" {
+		t.Fatal("symlink avatar was accepted")
+	}
+}
+
+func TestNotificationRPCUsesAvatarWithoutEnablingTextPreviews(t *testing.T) {
+	d := freshSelectionDaemon(t)
+	d.activeServices["telegram"] = true
+	d.tg.SetState(wire.StateConnected, "")
+	if err := os.MkdirAll(d.paths.TelegramMediaDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(d.paths.TelegramMediaDir(), "fixture.jpg")
+	if err := os.WriteFile(path, []byte("synthetic avatar"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	d.tg.AddTestConversation(wire.Conversation{ID: "tg:42", AvatarPath: path})
+	transport := &fakeNotifications{server: ":1.99"}
+	d.notifications.transport = transport
+	p := wire.NotifyMessageParams{ConversationName: "Demo Contact", Message: wire.Message{ID: "fixture", ConversationID: "tg:42", Text: "Synthetic message"}}
+	resp := d.dispatch(context.Background(), wire.Request{Network: "telegram", Method: wire.MethodNotifyMessage, Params: p})
+	if !resp.OK || transport.icon != (&url.URL{Scheme: "file", Path: path}).String() || transport.title != "OmaChat · Telegram" || transport.body != "New message" {
+		t.Fatal("contact avatar was not used independently of text previews")
+	}
+	if resp := d.dispatch(context.Background(), wire.Request{Method: wire.MethodTestNotification}); !resp.OK || transport.icon != "mail-unread" {
+		t.Fatal("test notification should keep its generic icon")
 	}
 }
 

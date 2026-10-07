@@ -166,7 +166,9 @@ badge while the app is open.
 Desktop notifications are enabled by default for new incoming messages while
 OmaChat is running. Open **Settings > Notifications** to turn them off, enable
 sender and message previews, or send a test notification. Previews are off by
-default: alerts show only OmaChat, the service, and "New message". Clicking an
+default: alert text shows only OmaChat, the service, and "New message". The icon
+uses the conversation's cached profile photo when available, with a generic
+message icon as the fallback. Test notifications use the generic icon. Clicking an
 alert opens its conversation. The conversation you are actively reading stays
 quiet; history refreshes, outgoing messages, reactions, and receipt updates do
 not produce new alerts. Your desktop controls Do Not Disturb and sounds.

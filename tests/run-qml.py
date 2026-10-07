@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix="omachat-qml-") as folder:
     if result.returncode or "OMACHAT_POPOUT_PASS" not in result.stdout or "OMACHAT_POPOUT_FAIL" in result.stdout or "ERROR" in result.stdout:
         raise SystemExit(1)
 
-    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("updates", "OMACHAT_UPDATES")):
+    for fixture, marker in (("review", "OMACHAT_REVIEW"), ("panel-keyboard", "OMACHAT_PANEL_KEYBOARD"), ("chat-view", "OMACHAT_CHAT_VIEW"), ("updates", "OMACHAT_UPDATES")):
         (config / "shell.qml").write_text((repo / ("tests/qml/" + fixture + ".qml")).read_text())
         result = subprocess.run(["qs", "-p", str(config)], env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=20)
         print(result.stdout)

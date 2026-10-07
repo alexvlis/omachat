@@ -498,7 +498,7 @@ ShellRoot {
     var beforeTelegram = fake.calls.length
     panel.setActiveService("telegram")
     root.check(inspect.findChild(panel, "inboxLoader").visible, "connected Telegram shows the live inbox")
-    root.check(fake.calls.length === beforeTelegram, "telegram tab does not issue chat RPCs")
+    root.check(fake.calls.slice(beforeTelegram).every(function(call) { return call.method === "setChatView" }), "telegram tab only saves its view preference before a chat is chosen")
     var tgInbox = inspect.findChild(panel, "inboxLoader").item
     root.check(tgInbox && tgInbox.reactionsSupported, "Telegram message bubbles enable the reaction action")
     tgInbox.selectConversation("tg:7")

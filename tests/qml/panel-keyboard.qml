@@ -63,6 +63,7 @@ ShellRoot {
     onTriggered: {
       try {
         if (root.step++ === 0) { panel.open(); return }
+        stop()
         var loader=inspect.findChild(panel,"inboxLoader")
         var list=inspect.findChild(loader.item,"convList")
         check(list !== null,"actual panel contains keyboard conversation list")

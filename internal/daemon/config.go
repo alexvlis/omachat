@@ -18,6 +18,9 @@ func (d *Daemon) PluginConfig() wire.ConfigResult {
 		ServiceSelectionRequired: required,
 		RestartRequired:          d.restartPending,
 		UiScale:                  scale,
+		LastService:              cfg.LastService,
+		SidebarCollapsed:         cfg.SidebarCollapsed,
+		LastConversations:        cfg.LastConversations,
 		TelegramConfigured:       credErr == nil,
 		TelegramAPIID:            cfg.TelegramAPIID,
 	}

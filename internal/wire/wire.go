@@ -93,6 +93,7 @@ const (
 	MethodReact                  = "react"
 	MethodDiscardCapture         = "discardCapture"
 	MethodSetUiScale             = "setUiScale"
+	MethodSetChatView            = "setChatView"
 	MethodConfig                 = "config"
 	MethodUnpair                 = "unpair"
 	MethodMedia                  = "media"
@@ -382,12 +383,15 @@ func (p *SetTelegramCredentialsParams) UnmarshalJSON(data []byte) error {
 // ConfigResult is safe to show in the panel. The Telegram API hash stays in
 // the daemon config file and is never sent to QML.
 type ConfigResult struct {
-	EnabledServices          []string `json:"enabledServices"`
-	ServiceSelectionRequired bool     `json:"serviceSelectionRequired"`
-	RestartRequired          bool     `json:"restartRequired"`
-	UiScale                  float64  `json:"uiScale"`
-	TelegramConfigured       bool     `json:"telegramConfigured"`
-	TelegramAPIID            int      `json:"telegramApiId,omitempty"`
+	EnabledServices          []string          `json:"enabledServices"`
+	ServiceSelectionRequired bool              `json:"serviceSelectionRequired"`
+	RestartRequired          bool              `json:"restartRequired"`
+	UiScale                  float64           `json:"uiScale"`
+	LastService              string            `json:"lastService"`
+	SidebarCollapsed         bool              `json:"sidebarCollapsed"`
+	LastConversations        map[string]string `json:"lastConversations"`
+	TelegramConfigured       bool              `json:"telegramConfigured"`
+	TelegramAPIID            int               `json:"telegramApiId,omitempty"`
 }
 
 type SetEnabledServicesParams struct {
@@ -396,6 +400,12 @@ type SetEnabledServicesParams struct {
 
 type SetUiScaleParams struct {
 	Scale float64 `json:"scale"`
+}
+
+type SetChatViewParams struct {
+	LastService      *string `json:"lastService,omitempty"`
+	SidebarCollapsed *bool   `json:"sidebarCollapsed,omitempty"`
+	ConversationID   *string `json:"conversationID,omitempty"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

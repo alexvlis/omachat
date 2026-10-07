@@ -17,6 +17,11 @@ Item {
   property var host: null
   property var settings: null
   property string network: "gmessages"
+  property bool sidebarCollapsed: false
+  property var lastConversations: ({})
+  readonly property bool sidebarVisible: !sidebarCollapsed || selectedConvID === ""
+  readonly property Item focusTarget: selectedConvID !== "" && composer.enabled ? composer : (sidebarVisible ? searchField : root)
+  signal conversationSelected(string network, string id)
   readonly property bool isWhatsApp: network === "whatsapp"
   readonly property bool isTelegram: network === "telegram"
   readonly property bool isMessenger: network === "messenger"
@@ -40,7 +45,15 @@ Item {
   property bool viewActive: true
   readonly property bool panelOpen: viewActive && host && host.opened === true
   onPanelOpenChanged: {
-    if (panelOpen) return
+    if (panelOpen) {
+      focusComposer()
+      markThreadRead()
+      return
+    }
+    focusRequest++
+    if (composer) composer.focus = false
+    if (searchField) searchField.focus = false
+    if (attachCaption) attachCaption.focus = false
     if (recording) stopRecording(false)
     stopPlayback()
   }
@@ -112,7 +125,8 @@ Item {
   property bool emojiPickerForReact: false
   property string reactingTo: ""
   property bool copied: false
-  property bool composerFocus: false
+  readonly property bool composerFocus: composer.activeFocus || searchField.activeFocus || attachCaption.activeFocus
+  property int focusRequest: 0
   property bool linkConfirmOpen: false
   property string pendingUrl: ""
   property var emojiList: []
@@ -186,15 +200,33 @@ Item {
     reactingTo = ""
     threadError = ""
 
-    var restoredID = _selectedByNet[network] || ""
     selectedConvID = ""
     messages = []
     grouped = []
-    if (restoredID) {
-      selectConversation(restoredID)
-    } else {
-      if (composer) composer.text = ""
-    }
+    if (composer) composer.text = ""
+    restoreConversation()
+  }
+
+  onConversationsChanged: restoreConversation()
+  onLastConversationsChanged: restoreConversation()
+  Component.onCompleted: restoreConversation()
+
+  function restoreConversation() {
+    if (!composer || selectedConvID !== "") return
+    var sessionID = _selectedByNet[network] || ""
+    var id = sessionID || lastConversations[network] || ""
+    if (id && (sessionID || conversations.some(function(conv) { return conv.id === id }))) selectConversation(id, false)
+  }
+
+  function focusComposer() {
+    var request = ++focusRequest
+    Qt.callLater(function() {
+      if (request !== root.focusRequest || !root.panelOpen || root.emojiPickerOpen || root.linkConfirmOpen || !composer) return
+      if (root.selectedConvID !== "" && composer.enabled) {
+        composer.forceActiveFocus()
+        composer.cursorPosition = composer.text.length
+      } else if (root.sidebarVisible) searchField.forceActiveFocus()
+    })
   }
 
   Timer {
@@ -209,8 +241,9 @@ Item {
     return fallback
   }
 
-  function selectConversation(id) {
-    if (id === selectedConvID || sendingMedia) return
+  function selectConversation(id, remember) {
+    if (sendingMedia) return
+    if (id === selectedConvID) { focusComposer(); return }
     var saved = Object.assign({}, _draftsByNet)
     if (selectedConvID) {
       var netDrafts = Object.assign({}, saved[network] || {})
@@ -239,6 +272,10 @@ Item {
     reactingTo = ""
     pendingAttachment = ""
     selectedConvID = id
+    var nextSel = Object.assign({}, _selectedByNet)
+    nextSel[network] = id
+    _selectedByNet = nextSel
+    if (remember !== false) conversationSelected(network, id)
     var currentNetDrafts = _draftsByNet[network] || {}
     composer.text = currentNetDrafts[id] || ""
     attachCaption.text = ""
@@ -247,6 +284,7 @@ Item {
     grouped = []
     threadError = ""
     loadMessages()
+    focusComposer()
   }
 
   function refreshThread() {
@@ -786,6 +824,7 @@ Item {
 
   function clearNetwork(net) {
     var targetNet = net || root.network
+    conversationSelected(targetNet, "")
     var epochs = Object.assign({}, root._networkEpochs)
     epochs[targetNet] = (epochs[targetNet] || 0) + 1
     root._networkEpochs = epochs
@@ -954,10 +993,12 @@ Item {
 
   Item {
     id: listPane
+    objectName: "conversationSidebar"
     anchors.left: parent.left
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    width: Math.round(parent.width * 0.32)
+    width: visible ? Math.round(parent.width * 0.32) : 0
+    visible: root.sidebarVisible
 
     PanelSectionHeader {
       id: inboxHeader
@@ -982,7 +1023,7 @@ Item {
       font.pixelSize: fs(Style.font.body)
       foreground: root.foreground
       onTextChanged: root.searchQuery = text
-      onActiveFocusChanged: root.composerFocus = activeFocus
+      onActiveFocusChanged: if (activeFocus) root.focusRequest++
     }
 
     Rectangle {
@@ -1138,18 +1179,20 @@ Item {
 
   Rectangle {
     id: paneRule
+    visible: root.sidebarVisible
     anchors.left: listPane.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
-    anchors.leftMargin: Style.space(8)
-    width: 1
+    anchors.leftMargin: visible ? Style.space(8) : 0
+    width: visible ? 1 : 0
     color: Color.popups.border
   }
 
   Item {
     id: threadPane
+    objectName: "threadPane"
     anchors.left: paneRule.right
-    anchors.leftMargin: Style.space(10)
+    anchors.leftMargin: root.sidebarVisible ? Style.space(10) : 0
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
@@ -1808,7 +1851,7 @@ Item {
         foreground: root.foreground
         enabled: !root.sendingMedia
         onAccepted: root.sendAttachment(text)
-        onActiveFocusChanged: root.composerFocus = activeFocus
+        onActiveFocusChanged: if (activeFocus) root.focusRequest++
       }
 
       Row {
@@ -1952,11 +1995,11 @@ Item {
           return "Write a message"
         }
         enabled: root.service && root.service.connected && (typeof root.service.stateFor === "function" ? root.service.stateFor(root.network) : root.service.state) === "connected" && !(root.selectedConv && root.selectedConv.readOnly)
+        onEnabledChanged: if (enabled) root.focusComposer()
         onAccepted: {
           root.sendMessage(text)
           text = ""
         }
-        onActiveFocusChanged: root.composerFocus = activeFocus
       }
     }
 

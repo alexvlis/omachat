@@ -159,6 +159,13 @@ to copy it. Middle-click the bar icon to refresh; its badge counts unread
 conversations across active services, and each service tab shows its own unread
 badge while the app is open.
 
+Use the arrow beside the OmaChat title to hide the conversation sidebar; the
+menu button brings it back. OmaChat remembers this layout, the last service,
+and the last conversation in each service across shell restarts. Reopening the
+panel or moving to the pop-out focuses the message input so you can type right
+away. If the remembered conversation is not available, the inbox stays visible
+so you can choose another chat. Read-only conversations do not focus the composer.
+
 Pick an attachment from the composer. Google Messages sends captions separately
 after the attachment; check the conversation before retrying a caption reported
 as unconfirmed. WhatsApp, Telegram, and Messenger include captions with images;
@@ -199,7 +206,7 @@ files as new downloads complete.
 | `~/.local/share/omachat/whatsapp.db` and `whatsapp_store.json` | WhatsApp credentials and chat cache |
 | `~/.local/share/omachat/telegram.session` and `telegram_store.json` | Telegram credentials and chat cache |
 | `~/.local/share/omachat/messenger_session.json` and `messenger.db` | Messenger session cookies and encrypted-device state |
-| `~/.local/share/omachat/config.json` | Service choices, text size, browser selection, Telegram API credentials |
+| `~/.local/share/omachat/config.json` | Service choices, text size, sidebar layout, last service and conversation IDs, browser selection, Telegram API credentials |
 | `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, `media_messenger/` | Service-specific media caches |
 | `$XDG_RUNTIME_DIR/omachat/daemon.sock` | Private plugin/helper control socket |
 

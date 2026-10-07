@@ -60,16 +60,18 @@ type Event struct {
 	Event   string `json:"event"`
 	Network string `json:"network,omitempty"`
 	Data    any    `json:"data,omitempty"`
+	Notify  bool   `json:"notify,omitempty"`
 }
 
 // Event names.
 const (
-	EventStatus       = "status"
-	EventConversation = "conversation"
-	EventMessage      = "message"
-	EventQR           = "qr"
-	EventEmoji        = "emoji"
-	EventPaired       = "paired"
+	EventStatus           = "status"
+	EventConversation     = "conversation"
+	EventMessage          = "message"
+	EventQR               = "qr"
+	EventEmoji            = "emoji"
+	EventPaired           = "paired"
+	EventNotificationOpen = "notificationOpen"
 )
 
 // Method names.
@@ -94,6 +96,9 @@ const (
 	MethodDiscardCapture         = "discardCapture"
 	MethodSetUiScale             = "setUiScale"
 	MethodSetChatView            = "setChatView"
+	MethodSetNotifications       = "setNotifications"
+	MethodNotifyMessage          = "notifyMessage"
+	MethodTestNotification       = "testNotification"
 	MethodConfig                 = "config"
 	MethodUnpair                 = "unpair"
 	MethodMedia                  = "media"
@@ -390,6 +395,8 @@ type ConfigResult struct {
 	LastService              string            `json:"lastService"`
 	SidebarCollapsed         bool              `json:"sidebarCollapsed"`
 	LastConversations        map[string]string `json:"lastConversations"`
+	NotificationsEnabled     bool              `json:"notificationsEnabled"`
+	NotificationPreviews     bool              `json:"notificationPreviews"`
 	TelegramConfigured       bool              `json:"telegramConfigured"`
 	TelegramAPIID            int               `json:"telegramApiId,omitempty"`
 }
@@ -406,6 +413,21 @@ type SetChatViewParams struct {
 	LastService      *string `json:"lastService,omitempty"`
 	SidebarCollapsed *bool   `json:"sidebarCollapsed,omitempty"`
 	ConversationID   *string `json:"conversationID,omitempty"`
+}
+
+type SetNotificationsParams struct {
+	Enabled  *bool `json:"enabled,omitempty"`
+	Previews *bool `json:"previews,omitempty"`
+}
+
+type NotifyMessageParams struct {
+	Message          Message `json:"message"`
+	ConversationName string  `json:"conversationName,omitempty"`
+}
+
+type NotificationTarget struct {
+	Network        string `json:"network"`
+	ConversationID string `json:"conversationID"`
 }
 
 // DiscardCaptureParams removes a webcam capture the user rejected.

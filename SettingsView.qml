@@ -48,6 +48,7 @@ Flickable {
   Controls.ScrollBar.vertical: Controls.ScrollBar { policy: Controls.ScrollBar.AsNeeded }
 
   function showUpdates() { jumpTo(updatesSection) }
+  function showNotifications() { jumpTo(notificationsSection) }
 
   function jumpTo(section) {
     contentY = Math.max(0, Math.min(section.y, contentHeight - height))
@@ -168,6 +169,7 @@ Flickable {
         model: [
           {label:"Updates", section:updatesSection},
           {label:"Services", section:serviceChoices},
+          {label:"Notifications", section:notificationsSection},
           {label:"Service guides", section:servicesSection},
           {label:"Tools", section:toolsSection},
           {label:"Telegram API", section:telegramSection},
@@ -284,6 +286,15 @@ Flickable {
       width: parent.width
       height: 1
       color: Color.popups.border
+    }
+
+    NotificationSettings {
+      id: notificationsSection
+      width: parent.width
+      service: root.service
+      fontFamily: root.fontFamily
+      uiScale: root.uiScale
+      foreground: root.copyColor
     }
 
     // Section 3: Dependencies and User Choice

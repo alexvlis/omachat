@@ -1674,7 +1674,9 @@ func (b *Backend) commitMessage(gen uint64, msg wire.Message, raw *waE2E.Message
 	// non-blocking channel enqueue so this does not risk deadlock. Publishing
 	// here closes the retirement race: Unpair increments gen and clears maps
 	// under the same lock, so it cannot observe these emits after retiring.
-	b.emitLocked(wire.EventMessage, msg)
+	if b.publish != nil {
+		b.publish(wire.Event{Event: wire.EventMessage, Network: wire.NetworkWhatsApp, Data: msg, Notify: !found && !msg.FromMe})
+	}
 	b.emitLocked(wire.EventConversation, updatedConv)
 	b.emitLocked(wire.EventStatus, st)
 	b.mu.Unlock()

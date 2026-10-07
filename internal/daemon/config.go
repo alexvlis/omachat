@@ -21,6 +21,8 @@ func (d *Daemon) PluginConfig() wire.ConfigResult {
 		LastService:              cfg.LastService,
 		SidebarCollapsed:         cfg.SidebarCollapsed,
 		LastConversations:        cfg.LastConversations,
+		NotificationsEnabled:     cfg.NotificationsOn(),
+		NotificationPreviews:     cfg.NotificationPreviews,
 		TelegramConfigured:       credErr == nil,
 		TelegramAPIID:            cfg.TelegramAPIID,
 	}

@@ -30,10 +30,12 @@ type Config struct {
 
 	// UiScale multiplies panel type. 1 is the theme default. 0 means unset
 	// and is treated as 1 when read.
-	UiScale           float64           `json:"uiScale,omitempty"`
-	LastService       string            `json:"lastService,omitempty"`
-	SidebarCollapsed  bool              `json:"sidebarCollapsed,omitempty"`
-	LastConversations map[string]string `json:"lastConversations,omitempty"`
+	UiScale              float64           `json:"uiScale,omitempty"`
+	LastService          string            `json:"lastService,omitempty"`
+	SidebarCollapsed     bool              `json:"sidebarCollapsed,omitempty"`
+	LastConversations    map[string]string `json:"lastConversations,omitempty"`
+	NotificationsEnabled *bool             `json:"notificationsEnabled,omitempty"`
+	NotificationPreviews bool              `json:"notificationPreviews,omitempty"`
 
 	// TelegramAPIID is the application api_id from my.telegram.org.
 	TelegramAPIID int `json:"telegramApiID,omitempty"`
@@ -140,7 +142,32 @@ func (c *ConfigStore) Get() Config {
 			out.LastConversations[network] = id
 		}
 	}
+	if out.NotificationsEnabled != nil {
+		enabled := *out.NotificationsEnabled
+		out.NotificationsEnabled = &enabled
+	}
 	return out
+}
+
+func (c Config) NotificationsOn() bool {
+	return c.NotificationsEnabled == nil || *c.NotificationsEnabled
+}
+
+func (c *ConfigStore) SetNotifications(enabled, previews *bool) error {
+	if enabled == nil && previews == nil {
+		return errors.New("notification preferences are required")
+	}
+	return c.updateLocked(func(cfg map[string]any, loaded *Config) {
+		if enabled != nil {
+			value := *enabled
+			cfg["notificationsEnabled"] = value
+			loaded.NotificationsEnabled = &value
+		}
+		if previews != nil {
+			cfg["notificationPreviews"] = *previews
+			loaded.NotificationPreviews = *previews
+		}
+	})
 }
 
 // EnabledServices preserves legacy installations while fresh installs require a choice.

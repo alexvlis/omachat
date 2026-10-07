@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls as Controls
 import Quickshell
 import Quickshell.Io
@@ -18,6 +19,9 @@ Panel {
   readonly property var barIdentity: hostWidget || root
 
   property string activeService: "gmessages"
+  property var notificationManager: null
+  property string pendingConversationID: ""
+  property string pendingConversationNetwork: ""
   property bool sidebarCollapsed: false
   property var lastConversations: ({})
   property bool chatViewLoaded: false
@@ -83,10 +87,10 @@ Panel {
     function onStatusWAChanged() { root.unreadRevision++ }
     function onStatusTGChanged() { root.unreadRevision++ }
     function onStatusFBChanged() { root.unreadRevision++ }
-    function onConversationsChanged() { root.unreadRevision++ }
-    function onConversationsWAChanged() { root.unreadRevision++ }
-    function onConversationsTGChanged() { root.unreadRevision++ }
-    function onConversationsFBChanged() { root.unreadRevision++ }
+    function onConversationsChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsWAChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsTGChanged() { root.unreadRevision++; root.selectPendingConversation() }
+    function onConversationsFBChanged() { root.unreadRevision++; root.selectPendingConversation() }
     function onPaired(network) { root.rememberConversation(network, "") }
   }
   readonly property bool noServices: serviceTabs.length === 0
@@ -253,12 +257,48 @@ Panel {
   function setActiveService(v) {
     if (!serviceTabs.some(function(tab) { return tab.value === v })) return
     root.settingsOpen = false
+    pendingConversationID = ""
     root.activeService = v
     saveChatView({lastService: v}, v)
     if (root.service) {
       root.service.currentNetwork = v
       if (v === "gmessages" || v === "whatsapp" || v === "telegram" || v === "messenger") root.service.loadConversations(v)
     }
+  }
+
+  function isReadingConversation(network, id) {
+    return anySurfaceOpen && inboxLoader.visible && inboxLoader.item
+      && inboxLoader.item.network === network && inboxLoader.item.selectedConvID === id
+      && keyCatcher.Window.window && keyCatcher.Window.window.active
+  }
+
+  function showConversation(network, id) {
+    if (!serviceTabs.some(function(tab) { return tab.value === network })) return
+    setActiveService(network)
+    pendingConversationNetwork = network
+    pendingConversationID = id
+    open()
+    if (popoutOpen && popoutContentHost.Window.window) popoutContentHost.Window.window.requestActivate()
+    Qt.callLater(selectPendingConversation)
+  }
+
+  function selectPendingConversation() {
+    if (!pendingConversationID || activeService !== pendingConversationNetwork || !inboxLoader.visible || !inboxLoader.item) return
+    if (!inboxLoader.item.conversations.some(function(conv) { return conv.id === root.pendingConversationID })) return
+    inboxLoader.item.selectConversation(pendingConversationID)
+    if (inboxLoader.item.selectedConvID === pendingConversationID) pendingConversationID = ""
+  }
+
+  function showNotificationSettings() {
+    settingsOpen = true
+    open()
+    Qt.callLater(function() { if (bodyLoader.item) bodyLoader.item.showNotifications() })
+  }
+
+  function registerNotificationView() {
+    if (notificationManager) notificationManager.unregisterView(root)
+    notificationManager = service && service.notifications ? service.notifications : null
+    if (notificationManager) notificationManager.registerView(root)
   }
 
   function focusChat() {
@@ -331,6 +371,7 @@ Panel {
   }
 
   onServiceChanged: {
+    registerNotificationView()
     syncRestartResume()
     syncActiveService()
     accountGeneration++
@@ -339,7 +380,8 @@ Panel {
     loadConfig()
   }
 
-  Component.onCompleted: syncRestartResume()
+  Component.onCompleted: { syncRestartResume(); registerNotificationView() }
+  Component.onDestruction: if (notificationManager) notificationManager.unregisterView(root)
 
   onConnStateChanged: {
     if (connState === "pairing" || connState === "gaiaPairing" || connState === "connecting") {
@@ -856,6 +898,8 @@ Panel {
       // Unpairing or losing the helper destroys this view and its account data.
       Loader {
         id: inboxLoader
+        onLoaded: Qt.callLater(root.selectPendingConversation)
+        onVisibleChanged: if (visible) Qt.callLater(root.selectPendingConversation)
         objectName: "inboxLoader"
         anchors.left: parent.left
         anchors.right: parent.right
@@ -1218,6 +1262,7 @@ Panel {
       sidebarCollapsed: root.sidebarCollapsed
       lastConversations: root.lastConversations
       onConversationSelected: function(network, id) { root.rememberConversation(network, id) }
+      onSendingMediaChanged: if (!sendingMedia) Qt.callLater(root.selectPendingConversation)
       networkLabel: root.activeService === "whatsapp" ? "WhatsApp" : (root.activeService === "telegram" ? "Telegram" : (root.activeService === "messenger" ? "Messenger" : "Google Messages"))
       uiScale: root.uiScale
     }

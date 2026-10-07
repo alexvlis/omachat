@@ -18,7 +18,7 @@ or working exploit details in a public issue.
 - WhatsApp chat cache: `~/.local/share/omachat/whatsapp_store.json` (0600)
 - Telegram session and chat cache: `~/.local/share/omachat/telegram.session` and `telegram_store.json` (0600)
 - Messenger session, encrypted-device state, and chat cache: `~/.local/share/omachat/messenger.db` and `messenger_store.json` (0600)
-- Config (browser profile, Telegram API credentials, sidebar layout, last service and per-service conversation IDs): `~/.local/share/omachat/config.json` (0600)
+- Config (browser profile, Telegram API credentials, notification preferences, sidebar layout, last service and per-service conversation IDs): `~/.local/share/omachat/config.json` (0600)
 - Attachment cache: `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, and `media_messenger/`
 - Telegram conversation caches from before typed peer IDs are ignored on upgrade;
   pairing credentials are retained and ambiguous attachment filenames are not reused.
@@ -33,6 +33,14 @@ part of the security boundary.
 Update preferences and cached public release metadata live in
 `~/.local/state/omachat/updates.json` (or under `XDG_STATE_HOME`). They are
 separate from messaging credentials. Daily checks are off by default.
+
+Desktop alerts use the local `org.freedesktop.Notifications` D-Bus service.
+Notifications are enabled by default, but sender/message previews are off.
+Enabling previews sends conversation names and a bounded text preview to the
+desktop notification service, which may retain them in its notification history.
+OmaChat does not put message content in notification command-line arguments or
+logs. Desktop notification actions are accepted only from the service's current
+D-Bus owner and route through locally held service/conversation identifiers.
 
 ## What is enforced
 

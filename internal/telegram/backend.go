@@ -512,6 +512,13 @@ func (b *Backend) ingestMessageFor(msg Message, epoch uint64) error {
 		b.convs[conversationID] = mapDialog(Dialog{ID: msg.ConversationID, Name: name, Preview: msg.Text, Timestamp: msg.Timestamp})
 		b.order = append([]string{conversationID}, b.order...)
 	}
+	newMessage := true
+	for _, existing := range b.messages[conversationID] {
+		if existing.ID == converted.ID {
+			newMessage = false
+			break
+		}
+	}
 	b.messages[conversationID] = mergeHistory(b.messages[conversationID], []wire.Message{converted})
 	conv := b.convs[conversationID]
 	conv.Preview, conv.Timestamp, conv.Unread = msg.Text, msg.Timestamp, !msg.FromMe
@@ -522,7 +529,7 @@ func (b *Backend) ingestMessageFor(msg Message, epoch uint64) error {
 	}
 	// Publish before releasing mu so a later unpair status cannot be overtaken.
 	if b.publish != nil {
-		b.publish(wire.Event{Event: wire.EventMessage, Network: wire.NetworkTelegram, Data: converted})
+		b.publish(wire.Event{Event: wire.EventMessage, Network: wire.NetworkTelegram, Data: converted, Notify: newMessage && !converted.FromMe})
 		b.publish(wire.Event{Event: wire.EventConversation, Network: wire.NetworkTelegram, Data: conv})
 		b.publish(wire.Event{Event: wire.EventStatus, Network: wire.NetworkTelegram, Data: b.status})
 	}

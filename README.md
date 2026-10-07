@@ -163,6 +163,14 @@ to copy it. Middle-click the bar icon to refresh; its badge counts unread
 conversations across active services, and each service tab shows its own unread
 badge while the app is open.
 
+Desktop notifications are enabled by default for new incoming messages while
+OmaChat is running. Open **Settings > Notifications** to turn them off, enable
+sender and message previews, or send a test notification. Previews are off by
+default: alerts show only OmaChat, the service, and "New message". Clicking an
+alert opens its conversation. The conversation you are actively reading stays
+quiet; history refreshes, outgoing messages, reactions, and receipt updates do
+not produce new alerts. Your desktop controls Do Not Disturb and sounds.
+
 Use the arrow beside the OmaChat title to hide the conversation sidebar; the
 menu button brings it back. OmaChat remembers this layout, the last service,
 and the last conversation in each service across shell restarts. Reopening the
@@ -210,7 +218,7 @@ files as new downloads complete.
 | `~/.local/share/omachat/whatsapp.db` and `whatsapp_store.json` | WhatsApp credentials and chat cache |
 | `~/.local/share/omachat/telegram.session` and `telegram_store.json` | Telegram credentials and chat cache |
 | `~/.local/share/omachat/messenger_session.json` and `messenger.db` | Messenger session cookies and encrypted-device state |
-| `~/.local/share/omachat/config.json` | Service choices, text size, sidebar layout, last service and conversation IDs, browser selection, Telegram API credentials |
+| `~/.local/share/omachat/config.json` | Service choices, notification preferences, text size, sidebar layout, last service and conversation IDs, browser selection, Telegram API credentials |
 | `~/.cache/omachat/media/`, `media_whatsapp/`, `media_telegram/`, `media_messenger/` | Service-specific media caches |
 | `$XDG_RUNTIME_DIR/omachat/daemon.sock` | Private plugin/helper control socket |
 

@@ -189,7 +189,7 @@ func (d *Daemon) handleConn(ctx context.Context, conn net.Conn) {
 			defer func() { <-slots }()
 			// A pre-change config snapshot must not be written after the setter's
 			// restart-required acknowledgement on another concurrent request.
-			if globalSetting(req.Method) || req.Method == wire.MethodSetEnabledServices {
+			if globalSetting(req.Method) || req.Method == wire.MethodSetEnabledServices || req.Method == wire.MethodUnpair {
 				d.configResponseMu.Lock()
 				defer d.configResponseMu.Unlock()
 			}
@@ -232,6 +232,9 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 	if req.Method == wire.MethodSetEnabledServices {
 		return d.handleSetEnabledServices(req)
 	}
+	if req.Method == wire.MethodSetNotifications || req.Method == wire.MethodNotifyMessage || req.Method == wire.MethodTestNotification {
+		return d.handleNotificationRequest(ctx, req)
+	}
 	if req.Method == wire.MethodSetChatView {
 		p, err := decodeParams[wire.SetChatViewParams](req.Params)
 		if err == nil {
@@ -272,6 +275,7 @@ func (d *Daemon) dispatch(ctx context.Context, req wire.Request) wire.Response {
 		return wire.Response{ID: req.ID, OK: false, Error: "unknown network: " + req.Network}
 	}
 	if req.Method == wire.MethodUnpair && resp.OK {
+		d.notifications.dismiss(ctx, network)
 		empty := ""
 		if err := d.config.SetChatView(network, &empty, nil, nil); err != nil {
 			return wire.Response{ID: req.ID, Error: "unpaired, but could not clear the remembered conversation: " + err.Error()}

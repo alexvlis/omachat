@@ -57,9 +57,11 @@ type Backend struct {
 	accountCtx    context.Context
 	accountCancel context.CancelFunc
 
-	convs    map[string]wire.Conversation
-	order    []string
-	messages map[string][]wire.Message
+	convs         map[string]wire.Conversation
+	order         []string
+	messages      map[string][]wire.Message
+	avatarKeys    map[string]string
+	avatarPending map[string]bool
 }
 
 type incomingHandlerClient interface {
@@ -89,6 +91,8 @@ func New(log zerolog.Logger, paths *appStore.Paths, publish func(wire.Event), cf
 		cancel:        cancel,
 		convs:         make(map[string]wire.Conversation),
 		messages:      make(map[string][]wire.Message),
+		avatarKeys:    make(map[string]string),
+		avatarPending: make(map[string]bool),
 		status: wire.Status{
 			Network: wire.NetworkTelegram,
 			State:   wire.StateUnpaired,
@@ -418,6 +422,8 @@ func (b *Backend) getOrCreateClientLocked(creds appStore.TelegramCredentials) (C
 // Caller holds mu; account cancellation never waits for a provider response.
 func (b *Backend) retireAccountLocked() {
 	b.epoch++
+	b.avatarKeys = make(map[string]string)
+	b.avatarPending = make(map[string]bool)
 	if b.accountCancel != nil {
 		b.accountCancel()
 	}
@@ -1217,6 +1223,12 @@ func (b *Backend) Refresh(ctx context.Context) error {
 		return err
 	}
 	convs := mapDialogs(dialogs, 50)
+	avatarKeys := make(map[string]string, len(dialogs))
+	for _, dialog := range dialogs {
+		if dialog.AvatarKey != "" {
+			avatarKeys[dialog.IDString()] = dialog.AvatarKey
+		}
+	}
 	msgs := make(map[string][]wire.Message)
 	order := make([]string, 0, len(convs))
 	for _, conv := range convs {
@@ -1238,8 +1250,13 @@ func (b *Backend) Refresh(ctx context.Context) error {
 		msgs[id] = mergeHistory(msgs[id], items)
 	}
 	b.convs, b.order, b.messages = make(map[string]wire.Conversation, len(convs)), order, msgs
-	for _, conv := range convs {
-		b.convs[conv.ID] = conv
+	b.avatarKeys = avatarKeys
+	for i := range convs {
+		conv := &convs[i]
+		if key := avatarKeys[conv.ID]; key != "" && b.paths != nil {
+			conv.AvatarPath = cachedAvatar(b.paths.TelegramMediaDir(), key)
+		}
+		b.convs[conv.ID] = *conv
 	}
 	b.recountUnreadLocked()
 	err = b.saveLocked()
@@ -1250,6 +1267,9 @@ func (b *Backend) Refresh(ctx context.Context) error {
 			b.publish(wire.Event{Event: wire.EventConversation, Network: wire.NetworkTelegram, Data: conv})
 		}
 		b.publish(wire.Event{Event: wire.EventStatus, Network: wire.NetworkTelegram, Data: status})
+	}
+	if err == nil {
+		b.queueAvatars(cli, epoch)
 	}
 	return err
 }

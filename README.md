@@ -135,6 +135,10 @@ stickers are unsupported, and media references need refreshing after restart.
 WhatsApp view-once/ephemeral and Telegram self-destructing media are not saved
 or reopened.
 
+Telegram user, group, and channel profile photos load in the background and
+are cached locally. Refresh picks up changed or removed photos; unavailable
+photos fall back to initials.
+
 The services use unofficial protocol clients and can stop working when their
 providers change. Automated checks do not establish live account compatibility
 for every service. See [verification history](docs/history/README.md) for dated

@@ -386,8 +386,14 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 	if err != nil {
 		return nil, err
 	}
+	return g.dialogs(res), nil
+}
+
+func (g *GotdClient) dialogs(res tg.MessagesDialogsClass) []Dialog {
 	names := map[string]string{}
 	peers := make(map[int64]tg.InputPeerClass)
+	avatarKeys := make(map[int64]string)
+	avatarRefs := make(map[string]tg.InputFileLocationClass)
 	var raws []tg.DialogClass
 	var lastMessages []tg.MessageClass
 	var users []tg.UserClass
@@ -402,8 +408,13 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 		if x, ok := u.(*tg.User); ok {
 			id := userPeerID(x.ID)
 			names[fmt.Sprintf("tg:%d", id)] = strings.TrimSpace(x.FirstName + " " + x.LastName)
-			if x.AccessHash != 0 {
+			if x.Self {
+				peers[id] = &tg.InputPeerSelf{}
+			} else if x.AccessHash != 0 {
 				peers[id] = &tg.InputPeerUser{UserID: x.ID, AccessHash: x.AccessHash}
+			}
+			if photo, ok := x.Photo.(*tg.UserProfilePhoto); ok {
+				addAvatarReference(avatarKeys, avatarRefs, id, peers[id], photo.PhotoID)
 			}
 		}
 	}
@@ -413,11 +424,17 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 			id := chatPeerID(x.ID)
 			names[fmt.Sprintf("tg:%d", id)] = x.Title
 			peers[id] = &tg.InputPeerChat{ChatID: x.ID}
+			if photo, ok := x.Photo.(*tg.ChatPhoto); ok {
+				addAvatarReference(avatarKeys, avatarRefs, id, peers[id], photo.PhotoID)
+			}
 		case *tg.Channel:
 			id := channelPeerID(x.ID)
 			names[fmt.Sprintf("tg:%d", id)] = x.Title
 			if x.AccessHash != 0 {
 				peers[id] = &tg.InputPeerChannel{ChannelID: x.ID, AccessHash: x.AccessHash}
+			}
+			if photo, ok := x.Photo.(*tg.ChatPhoto); ok {
+				addAvatarReference(avatarKeys, avatarRefs, id, peers[id], photo.PhotoID)
 			}
 		}
 	}
@@ -445,14 +462,22 @@ func (g *GotdClient) Dialogs(ctx context.Context, limit int) ([]Dialog, error) {
 			continue
 		}
 		preview := previews[id]
-		out = append(out, Dialog{ID: id, Name: names[fmt.Sprintf("tg:%d", id)], Preview: preview.Text, Unread: d.UnreadCount > 0, Timestamp: preview.Timestamp, IsGroup: isGroupPeer(d.Peer)})
+		out = append(out, Dialog{ID: id, Name: names[fmt.Sprintf("tg:%d", id)], Preview: preview.Text, Unread: d.UnreadCount > 0, Timestamp: preview.Timestamp, IsGroup: isGroupPeer(d.Peer), AvatarKey: avatarKeys[id]})
 	}
 	g.mu.Lock()
 	for id, peer := range peers {
 		g.peers[id] = peer
 	}
+	for key := range g.mediaRefs {
+		if strings.HasPrefix(key, telegramAvatarPrefix) {
+			delete(g.mediaRefs, key)
+		}
+	}
+	for key, location := range avatarRefs {
+		g.mediaRefs[key] = location
+	}
 	g.mu.Unlock()
-	return out, nil
+	return out
 }
 
 // Messages fetches the most recent text messages for a peer. It delegates to
@@ -844,11 +869,15 @@ func (g *GotdClient) DownloadMedia(ctx context.Context, key, dir string) (string
 	if location == nil {
 		return "", errors.New("Telegram media reference is unavailable; refresh the conversation")
 	}
+	limit := int64(maxTelegramMediaBytes)
+	if _, avatar := location.(*tg.InputPeerPhotoFileLocation); avatar {
+		limit = maxTelegramAvatarBytes
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 	final := filepath.Join(dir, safeMediaName(key)+ext)
-	if st, err := os.Stat(final); err == nil && st.Mode().IsRegular() {
+	if st, err := os.Stat(final); err == nil && st.Mode().IsRegular() && st.Size() > 0 && st.Size() <= limit {
 		return final, nil
 	}
 	tmp, err := os.CreateTemp(dir, ".telegram-media-*")
@@ -857,7 +886,7 @@ func (g *GotdClient) DownloadMedia(ctx context.Context, key, dir string) (string
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
-	capped := &cappedWriter{w: tmp, limit: maxTelegramMediaBytes}
+	capped := &cappedWriter{w: tmp, limit: limit}
 	_, streamErr := g.client.Download(location).Stream(ctx, capped)
 	closeErr := tmp.Close()
 	if streamErr != nil {

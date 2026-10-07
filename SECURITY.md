@@ -40,6 +40,8 @@ separate from messaging credentials. Daily checks are off by default.
   stream. Telegram downloads stop at 32 MiB while transferring. Each service
   evicts old downloaded attachments above its 256 MiB cache budget. A declared
   `Content-Length` is never trusted as the allocation size.
+- Telegram profile photos use authenticated MTProto downloads, stop at 5 MiB,
+  and share Telegram's 256 MiB media cache. Unpairing clears these photos too.
 - Group avatar URLs must be `https` and must resolve to a public address.
   Loopback, private, link-local, and carrier-grade NAT ranges are refused.
 - OmaChat's direct child-process launches use argument arrays, not interpolated

@@ -38,7 +38,9 @@ ShellRoot {
         pending.push({params:params, network:net, callback:callback})
       } else if (method === "messages") {
         messageRequests.push({network:net, id:params.conversationID})
-        callback(true, {messages:[], hasMore:false})
+        var messages = []
+        for (var i = 0; i < 60; i++) messages.push({id:"demo-message-" + i, conversationID:params.conversationID, text:"Synthetic message " + i, timestamp:1700000000000000 + i*1000000, fromMe:false})
+        callback(true, {messages:messages, hasMore:false})
       }
     }
     function drain() {
@@ -71,6 +73,7 @@ ShellRoot {
         var composer = inbox ? inspect.findChild(inbox, "composer") : null
         var sidebar = inbox ? inspect.findChild(inbox, "conversationSidebar") : null
         var thread = inbox ? inspect.findChild(inbox, "threadPane") : null
+        var messageList = inbox ? inspect.findChild(inbox, "messageList") : null
         if (root.step === 0) {
           panel.open()
         } else if (root.step === 1) {
@@ -92,18 +95,25 @@ ShellRoot {
           fake.conversationsTG = fake.conversationsTG.concat([{id:"demo-c", name:"Demo Carol"}])
         } else if (root.step === 4) {
           check(inspect.findChild(inbox, "searchField").activeFocus, "background list updates do not steal search focus")
+          messageList.positionViewAtIndex(10,ListView.Beginning)
+          check(!messageList.atYEnd,"chat can be scrolled into older messages")
           panel.close()
         } else if (root.step === 5) {
           panel.open()
         } else if (root.step === 6) {
           check(inbox.selectedConvID === "demo-b" && composer.activeFocus && composer.text === "r1", "reopening keeps the chat and draft and restores typing focus")
           check(composer.cursorPosition === composer.text.length, "typing resumes at the end of the draft")
+          check(messageList.atYEnd,"reopening the panel resets the chat to the newest message")
+          messageList.positionViewAtIndex(10,ListView.Beginning)
           panel.openPopout()
         } else if (root.step === 7) {
           check(panel.contentInPopout && composer.activeFocus, "pop-out keeps typing focus")
+          check(messageList.atYEnd,"moving to the pop-out resets the chat to the newest message")
+          messageList.positionViewAtIndex(10,ListView.Beginning)
           panel.returnToPanel()
         } else if (root.step === 8) {
           check(panel.opened && composer.activeFocus, "returning to the panel keeps typing focus")
+          check(messageList.atYEnd,"returning to the panel resets the chat to the newest message")
           inbox.selectConversation("demo-a")
           panel.setActiveService("gmessages")
         } else if (root.step === 9) {

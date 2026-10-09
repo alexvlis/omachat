@@ -176,9 +176,10 @@ not produce new alerts. Your desktop controls Do Not Disturb and sounds.
 Use the arrow beside the OmaChat title to hide the conversation sidebar; the
 menu button brings it back. OmaChat remembers this layout, the last service,
 and the last conversation in each service across shell restarts. Reopening the
-panel or moving to the pop-out focuses the message input so you can type right
-away. If the remembered conversation is not available, the inbox stays visible
-so you can choose another chat. Read-only conversations do not focus the composer.
+panel or moving between the panel and pop-out scrolls to the newest messages
+and focuses the message input so you can type right away. If the remembered
+conversation is not available, the inbox stays visible so you can choose another
+chat. Read-only conversations do not focus the composer.
 
 Pick an attachment from the composer. Google Messages sends captions separately
 after the attachment; check the conversation before retrying a caption reported

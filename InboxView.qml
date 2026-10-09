@@ -46,10 +46,13 @@ Item {
   readonly property bool panelOpen: viewActive && host && host.opened === true
   onPanelOpenChanged: {
     if (panelOpen) {
+      scrollToLatest()
       focusComposer()
       markThreadRead()
       return
     }
+    pendingLatestScroll = false
+    followingLatest = false
     focusRequest++
     if (composer) composer.focus = false
     if (searchField) searchField.focus = false
@@ -114,6 +117,9 @@ Item {
   property int historyRequest: 0
   property int viewportRevision: 0
   property var pendingAnchor: null
+  property bool pendingLatestScroll: false
+  property bool followingLatest: false
+  property bool positioningMessages: false
   property string threadError: ""
   property var mediaPaths: ({})
   property var _mediaNetworks: ({})
@@ -170,6 +176,8 @@ Item {
     var prev = _previousNetwork
     _previousNetwork = network
     if (prev === network) return
+    pendingLatestScroll = false
+    followingLatest = false
     mediaSendToken++
     sendingMedia = false
     mediaRequests = ({})
@@ -210,6 +218,7 @@ Item {
   onConversationsChanged: restoreConversation()
   onLastConversationsChanged: restoreConversation()
   Component.onCompleted: restoreConversation()
+  Component.onDestruction: { viewportRevision++; selectionGeneration++ }
 
   function restoreConversation() {
     if (!composer || selectedConvID !== "") return
@@ -226,6 +235,29 @@ Item {
         composer.forceActiveFocus()
         composer.cursorPosition = composer.text.length
       } else if (root.sidebarVisible) searchField.forceActiveFocus()
+    })
+  }
+
+  function positionMessagesAtEnd() {
+    positioningMessages = true
+    messageList.forceLayout()
+    messageList.positionViewAtEnd()
+    messageList.forceLayout()
+    messageList.positionViewAtEnd()
+    followingLatest = true
+    positioningMessages = false
+  }
+
+  function scrollToLatest() {
+    if (!panelOpen || selectedConvID === "") return
+    pendingLatestScroll = true
+    pendingAnchor = null
+    var revision = ++viewportRevision
+    var generation = selectionGeneration
+    Qt.callLater(function() {
+      if (!root.panelOpen || revision !== viewportRevision || generation !== selectionGeneration) return
+      positionMessagesAtEnd()
+      pendingLatestScroll = false
     })
   }
 
@@ -255,6 +287,8 @@ Item {
     historyRequest++
     viewportRevision++
     pendingAnchor = null
+    pendingLatestScroll = false
+    followingLatest = false
     loadingOlder = false
     hasOlder = false
     historyExpanded = false
@@ -307,6 +341,7 @@ Item {
   }
 
   function displayMessages(next, followEnd) {
+    followEnd = followEnd || (pendingLatestScroll && panelOpen)
     var anchor = followEnd ? null : captureViewport()
     pendingAnchor = anchor
     messages = next
@@ -317,9 +352,8 @@ Item {
       if (revision !== viewportRevision || generation !== selectionGeneration) return
       messageList.forceLayout()
       if (followEnd) {
-        messageList.positionViewAtEnd()
-        messageList.forceLayout()
-        messageList.positionViewAtEnd()
+        positionMessagesAtEnd()
+        pendingLatestScroll = false
       }
       else if (anchor) {
         for (var i = 0; i < grouped.length; i++) {
@@ -1306,6 +1340,10 @@ Item {
     ListView {
       id: messageList
       objectName: "messageList"
+      onContentYChanged: if (!root.positioningMessages && !root.pendingLatestScroll) root.followingLatest = atYEnd
+      onWidthChanged: if (root.panelOpen && root.followingLatest && !root.positioningMessages && !root.pendingLatestScroll) root.scrollToLatest()
+      onHeightChanged: if (root.panelOpen && root.followingLatest && !root.positioningMessages && !root.pendingLatestScroll) root.scrollToLatest()
+      onContentHeightChanged: if (root.panelOpen && root.followingLatest && !root.positioningMessages && !root.pendingLatestScroll) root.scrollToLatest()
       anchors.left: parent.left
       anchors.right: parent.right
       anchors.top: historyControls.bottom
@@ -1566,7 +1604,7 @@ Item {
                 id: bubbleText
                 width: parent.width
                 visible: !!(row.hasText || (row.msg && row.msg.deleted === true))
-                height: visible ? implicitHeight : 0
+                height: row.hasText || (row.msg && row.msg.deleted === true) ? implicitHeight : 0
                 text: {
                   if (row.msg && row.msg.deleted) return "Message deleted"
                   return Model.linkify(row.msg ? (row.msg.text || "") : "")

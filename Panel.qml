@@ -202,7 +202,7 @@ Panel {
     requestPopoutMode(popoutMode)
     Qt.callLater(function() {
       root.surfaceTransfer = false
-      if (root.popoutOpen) root.focusChat()
+      if (root.popoutOpen) root.focusChat(true)
     })
   }
 
@@ -218,7 +218,7 @@ Panel {
     root.controller.show()
     Qt.callLater(function() {
       root.surfaceTransfer = false
-      if (root.opened) root.focusChat()
+      if (root.opened) root.focusChat(true)
     })
   }
 
@@ -301,8 +301,11 @@ Panel {
     if (notificationManager) notificationManager.registerView(root)
   }
 
-  function focusChat() {
-    if (inboxLoader.visible && inboxLoader.item) inboxLoader.item.focusComposer()
+  function focusChat(showLatest) {
+    if (inboxLoader.visible && inboxLoader.item) {
+      if (showLatest === true) inboxLoader.item.scrollToLatest()
+      inboxLoader.item.focusComposer()
+    }
     else keyCatcher.forceActiveFocus()
   }
 
